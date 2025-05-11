@@ -1,0 +1,58 @@
+import ccxt
+import pandas as pd
+import time
+import ta  # Technical analysis library
+
+# Setup your Binance Testnet credentials
+API_KEY = 'your_api_key'
+API_SECRET = 'your_secret_key'
+
+# Connect to Binance Testnet
+exchange = ccxt.binance({
+    'apiKey': API_KEY,
+    'secret': API_SECRET,
+    'enableRateLimit': True,
+    'options': {'defaultType': 'spot'},
+})
+exchange.set_sandbox_mode(True)  # Enables Testnet mode
+
+symbol = 'BTC/USDT'
+timeframe = '1h'
+limit = 100
+
+def get_data():
+    bars = exchange.fetch_ohlcv(symbol, timeframe=timeframe, limit=limit)
+    df = pd.DataFrame(bars, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+    df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+    return df
+
+def compute_rsi(df):
+    df['rsi'] = ta.momentum.RSIIndicator(df['close'], window=14).rsi()
+    return df
+
+def place_order(side):
+    print(f"Placing {side} order...")
+    try:
+        order = exchange.create_market_order(symbol=symbol, side=side, amount=0.001)
+        print(order)
+    except Exception as e:
+        print(f"Order failed: {e}")
+
+def run_bot():
+    df = get_data()
+    df = compute_rsi(df)
+
+    last_rsi = df['rsi'].iloc[-1]
+    print(f"Latest RSI: {last_rsi}")
+
+    if last_rsi < 30:
+        place_order('buy')
+    elif last_rsi > 70:
+        place_order('sell')
+    else:
+        print("No trade signal.")
+
+# Run the bot every hour (for real use, use a scheduler like cron or APScheduler)
+while True:
+    run_bot()
+    time.sleep(3600)  # Wait 1 hour
